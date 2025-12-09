@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Исследование фичи - AI Research Assistant</title>
+    <link rel="icon" type="image/jpeg" href="/static/logo.jpg">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Animated Background -->
+        <div class="background-animation">
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+            <div class="gradient-orb orb-3"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div>
+            <div class="form-container">
+                <div class="form-section">
+                    <div class="form-header">
+                        <div class="header-controls">
+                            <div class="back-btn" onclick="goBack()">
+                                <i class="fas fa-arrow-left"></i>
+                                <span>Назад</span>
+                            </div>
+                            <div class="help-trigger" onclick="toggleHelp()">
+                                <i class="fas fa-info-circle"></i>
+                            </div>
+                        </div>
+                        <h1 class="form-title">
+                            Исследование фичи
+                        </h1>
+                        <p class="form-subtitle">
+                            Заполните форму для глубокого анализа функциональности
+                        </p>
+                    </div>
+
+                    <form action="/process-feature" method="post" onsubmit="return validateAndSubmit()">
+                        <!-- 1. Описание продукта и бизнес-контекста -->
+                        <div class="form-group">
+                            <label class="form-label required" for="product_description">
+                                1. Описание продукта и бизнес-контекста
+                                <span class="required-star">*</span>
+                            </label>
+                            <textarea 
+                                id="product_description" 
+                                name="product_description" 
+                                class="form-textarea" 
+                                placeholder="Опишите ваш продукт, его назначение, целевую аудиторию и бизнес-контекст..."
+                                required
+                            ></textarea>
+                        </div>
+
+                        <!-- 2. Сегмент продукта -->
+                        <div class="form-group">
+                            <label class="form-label required">
+                                2. Сегмент продукта
+                                <span class="required-star">*</span>
+                            </label>
+                            <div class="segment-selector">
+                                <div class="segment-option">
+                                    <input type="radio" id="segment_fl" name="segment" value="ФЛ" required>
+                                    <label for="segment_fl" class="segment-label">
+                                        <div class="segment-icon">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div class="segment-content">
+                                            <div class="segment-title">Физические лица</div>
+                                            <div class="segment-subtitle">ФЛ</div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="segment-option">
+                                    <input type="radio" id="segment_ul" name="segment" value="ЮЛ" required>
+                                    <label for="segment_ul" class="segment-label">
+                                        <div class="segment-icon">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div class="segment-content">
+                                            <div class="segment-title">Юридические лица</div>
+                                            <div class="segment-subtitle">ЮЛ</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Что исследуем -->
+                        <div class="form-group">
+                            <label class="form-label required" for="research_element">
+                                3. Что исследуем (элемент продукта)
+                                <span class="required-star">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="research_element" 
+                                name="research_element" 
+                                class="form-input" 
+                                placeholder="Например: авторизация, платежи, уведомления, чат-бот..."
+                                required
+                            >
+                        </div>
+
+                        <!-- 4. Известные бенчмарки -->
+                        <div class="form-group">
+                            <label class="form-label" for="benchmarks">
+                                4. Известные бенчмарки
+                            </label>
+                            <textarea 
+                                id="benchmarks" 
+                                name="benchmarks" 
+                                class="form-textarea" 
+                                placeholder="Укажите известные вам компании или продукты, которые можно использовать как бенчмарки..."
+                            ></textarea>
+                        </div>
+
+                        <!-- 5. Обязательные игроки -->
+                        <div class="form-group">
+                            <label class="form-label" for="required_players">
+                                5. Обязательные игроки к рассмотрению
+                            </label>
+                            <textarea 
+                                id="required_players" 
+                                name="required_players" 
+                                class="form-textarea" 
+                                placeholder="Укажите конкретные компании, которые обязательно должны быть включены в анализ..."
+                            ></textarea>
+                        </div>
+
+                        <!-- 6. Обязательные страны -->
+                        <div class="form-group">
+                            <label class="form-label" for="required_countries">
+                                6. Обязательные страны к рассмотрению
+                            </label>
+                            <textarea 
+                                id="required_countries" 
+                                name="required_countries" 
+                                class="form-textarea" 
+                                placeholder="Укажите страны или регионы, которые обязательно должны быть включены в анализ..."
+                            ></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" class="submit-btn">
+                            <i class="fas fa-rocket"></i>
+                            Начать исследование
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Help Overlay -->
+                <div class="help-overlay" id="helpOverlay" onclick="toggleHelp()"></div>
+                
+                <!-- Help Section -->
+                <div class="help-section" id="helpSection">
+                    <div class="help-header">
+                        <h3><i class="fas fa-question-circle"></i> Как заполнить форму?</h3>
+                        <button class="help-close" onclick="toggleHelp()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="help-grid">
+                        <div class="help-item">
+                            <i class="fas fa-lightbulb"></i>
+                            <div class="help-content">
+                                <strong>Будьте конкретны</strong>
+                                <p>Чем детальнее описание, тем точнее анализ</p>
+                            </div>
+                        </div>
+                        <div class="help-item">
+                            <i class="fas fa-flag"></i>
+                            <div class="help-content">
+                                <strong>Фокусируйтесь на цели</strong>
+                                <p>Укажите, что именно вы хотите улучшить</p>
+                            </div>
+                        </div>
+                        <div class="help-item">
+                            <i class="fas fa-globe"></i>
+                            <div class="help-content">
+                                <strong>Учитывайте контекст</strong>
+                                <p>Укажите рынок и целевую аудиторию</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+        function goBack() {
+            window.history.back();
+        }
+
+        function toggleHelp() {
+            const helpSection = document.getElementById('helpSection');
+            const helpOverlay = document.getElementById('helpOverlay');
+            const helpTrigger = document.querySelector('.help-trigger');
+            
+            if (helpSection.classList.contains('active')) {
+                helpSection.classList.remove('active');
+                helpOverlay.classList.remove('active');
+                helpTrigger.classList.remove('active');
+            } else {
+                helpSection.classList.add('active');
+                helpOverlay.classList.add('active');
+                helpTrigger.classList.add('active');
+            }
+        }
+
+        function validateAndSubmit() {
+            const form = document.querySelector('form');
+            const requiredFields = form.querySelectorAll('[required]');
+            let isValid = true;
+
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    field.style.borderColor = '#ff6b6b';
+                    isValid = false;
+                } else {
+                    field.style.borderColor = '#e1e5e9';
+                }
+            });
+
+            if (!isValid) {
+                alert('Пожалуйста, заполните все обязательные поля');
+                return false;
+            }
+
+            // Show loading state
+            const submitBtn = document.querySelector('.submit-btn');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+            submitBtn.disabled = true;
+
+            return true;
+        }
+
+        // Add character counters to textareas
+        document.querySelectorAll('textarea').forEach(textarea => {
+            const maxLength = 1000;
+            const counter = document.createElement('div');
+            counter.className = 'char-counter';
+            counter.style.textAlign = 'right';
+            counter.style.fontSize = '0.9rem';
+            counter.style.color = '#666';
+            counter.style.marginTop = '5px';
+            
+            textarea.parentNode.appendChild(counter);
+            
+            function updateCounter() {
+                const length = textarea.value.length;
+                counter.textContent = `${length}/${maxLength}`;
+                if (length > maxLength * 0.9) {
+                    counter.style.color = '#ff6b6b';
+                } else {
+                    counter.style.color = '#666';
+                }
+            }
+            
+            textarea.addEventListener('input', updateCounter);
+            updateCounter();
+        });
+
+        // Close help on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const helpSection = document.getElementById('helpSection');
+                if (helpSection && helpSection.classList.contains('active')) {
+                    toggleHelp();
+                }
+            }
+        });
+    </script>
+
+    <style>
+        .form-header {
+            position: relative;
+            margin-bottom: 40px;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .header-right {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .help-trigger {
+            width: 40px;
+            height: 40px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.2rem;
+        }
+
+        .help-trigger:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: scale(1.1);
+        }
+
+        .help-trigger.active {
+            background: #667eea;
+            color: white;
+            animation: pulse 0.6s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .back-btn:hover {
+            color: #764ba2;
+            transform: translateX(-5px);
+        }
+
+        .form-subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-top: 10px;
+        }
+
+        .help-section {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            max-width: 500px;
+            width: 90%;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .help-section.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .help-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .help-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .help-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .help-section h3 {
+            color: #333;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .help-close {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .help-close:hover {
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff6b6b;
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .help-item {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .help-item i {
+            color: #667eea;
+            font-size: 1.2rem;
+            margin-top: 5px;
+        }
+
+        .help-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .help-item strong i {
+            color: #667eea;
+            margin-right: 8px;
+            font-size: 0.9rem;
+        }
+
+        .help-item p {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .char-counter {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        @media (max-width: 768px) {
+            .help-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-right {
+                position: static;
+                display: flex;
+                justify-content: flex-end;
+                margin-bottom: 20px;
+            }
+            
+            .help-trigger {
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+            
+            .help-section {
+                max-width: 95%;
+                padding: 20px;
+            }
+            
+            .help-header {
+                flex-direction: row;
+                gap: 15px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</body>
+</html>

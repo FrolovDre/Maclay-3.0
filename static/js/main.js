@@ -61,7 +61,7 @@ function resetCardStates() {
 }
 
 // Function to handle option selection
-function selectOption(type) {
+function selectOption(event, type) {
     // Add loading state to the selected card
     const selectedCard = event.currentTarget;
     selectedCard.style.transform = 'scale(0.95)';
@@ -74,15 +74,18 @@ function selectOption(type) {
         <p>Загрузка...</p>
     `;
 
+    // Determine navigation target
+    const isStaticHost = window.location.protocol === 'file:' || window.location.hostname.includes('github.io');
+
+    const targets = {
+        feature: isStaticHost ? 'feature_form.html' : '/feature',
+        product: isStaticHost ? 'product_form.html' : '/product'
+    };
+
     // Navigate based on type
     setTimeout(() => {
-        switch(type) {
-            case 'feature':
-                window.location.href = '/feature';
-                break;
-            case 'product':
-                window.location.href = '/product';
-                break;
+        if (targets[type]) {
+            window.location.href = targets[type];
         }
     }, 1000);
 }

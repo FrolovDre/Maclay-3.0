@@ -32,11 +32,11 @@ cd Maclay
 pip install -r requirements.txt
 ```
 
-3. Создайте файл `.env` и добавьте ваш Gemini API ключ:
+3. Создайте файл `.env` и добавьте ваш токен Hugging Face:
 ```env
-GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_API_URL=https://generativelanguage.googleapis.com
-GEMINI_MODEL=gemini-2.5-flash
+HF_API_TOKEN=your-deepseek-api-key-here
+HF_API_URL=https://api-inference.huggingface.co
+HF_MODEL=deepseek-ai/DeepSeek-R1
 ```
 
 ## 🚀 Запуск
@@ -146,13 +146,13 @@ Maclay/
 - **Real-time Loading** - Анимированная страница загрузки с прогрессом
 - **Интерактивные формы** - Пошаговое заполнение с валидацией
 
-## 🔑 Получение Gemini API ключа
+## 🔑 Получение токена Hugging Face
 
-1. Зарегистрируйтесь на [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Создайте новый API ключ
-3. Добавьте ключ в файл `.env`:
+1. Зарегистрируйтесь на [Hugging Face](https://huggingface.co/)
+2. Создайте персональный токен доступа
+3. Добавьте токен в файл `.env`:
 ```env
-GEMINI_API_KEY=your-gemini-api-key-here
+HF_API_TOKEN=your-deepseek-api-key-here
 ```
 
 ## 🚀 Деплой на сервере

@@ -11,10 +11,10 @@ load_dotenv()
 class Config:
     """Конфигурация приложения"""
     
-    # Google Gemini API
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "your-gemini-api-key-here")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    GEMINI_API_URL = "https://generativelanguage.googleapis.com"
+    # Hugging Face / DeepSeek API
+    HF_API_TOKEN = os.getenv("HF_API_TOKEN", "your-deepseek-api-key-here")
+    HF_MODEL = os.getenv("HF_MODEL", "deepseek-ai/DeepSeek-R1")
+    HF_API_URL = os.getenv("HF_API_URL", "https://api-inference.huggingface.co")
     
     # Server Configuration
     HOST = os.getenv("HOST", "0.0.0.0")
@@ -42,8 +42,8 @@ class Config:
         """Проверяет корректность конфигурации"""
         errors = []
         
-        if not cls.GEMINI_API_KEY or cls.GEMINI_API_KEY == "your-gemini-api-key-here":
-            errors.append("GEMINI_API_KEY не настроен. Добавьте ключ в .env файл")
+        if not cls.HF_API_TOKEN or not cls.HF_API_TOKEN.startswith("hf_"):
+            errors.append("HF_API_TOKEN не настроен или некорректен. Добавьте токен Hugging Face в .env файл")
         
         if cls.PORT < 1 or cls.PORT > 65535:
             errors.append("Некорректный порт. Должен быть от 1 до 65535")

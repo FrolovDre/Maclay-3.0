@@ -19,6 +19,55 @@ from research_stages import ResearchProcessor
 
 load_dotenv()
 
+
+async def call_deepseek(prompt: str, temperature: float = 0.7, max_new_tokens: int = 4096) -> str:
+    """Call DeepSeek model via Hugging Face Inference API"""
+    api_url = f"{config.HF_API_URL}/models/{config.HF_MODEL}"
+    headers = {
+        "Authorization": f"Bearer {config.HF_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "temperature": temperature,
+            "max_new_tokens": max_new_tokens,
+            "return_full_text": False,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=600.0) as client:
+        max_retries = 5
+        attempt = 0
+
+        while attempt < max_retries:
+            try:
+                response = await client.post(api_url, headers=headers, json=payload)
+                if response.status_code == 503:
+                    await asyncio.sleep(5)
+                    continue
+                response.raise_for_status()
+                result = response.json()
+                return extract_generated_text(result)
+            except Exception as e:
+                attempt += 1
+                if attempt >= max_retries:
+                    raise e
+                await asyncio.sleep(2 ** attempt)
+
+
+def extract_generated_text(result: Any) -> str:
+    """Extract generated text from Hugging Face response"""
+    if isinstance(result, list) and result:
+        item = result[0]
+        if isinstance(item, dict):
+            return item.get("generated_text") or item.get("text") or ""
+        if isinstance(item, str):
+            return item
+    if isinstance(result, dict):
+        return result.get("generated_text") or result.get("text") or ""
+    return ""
+
 app = FastAPI(
     title=config.APP_NAME,
     description=config.APP_DESCRIPTION,
@@ -259,7 +308,7 @@ async def process_research_background(research_data: Dict[str, Any], research_ty
                     required_players=research_data.get('required_players', ''),
                     required_countries=research_data.get('required_countries', ''),
                     session_id=session_id,
-                    ai_model=config.GEMINI_MODEL,
+                    ai_model=config.HF_MODEL,
                     processing_time=120,  # 2 minutes
                     tokens_used=len(result["report"].split()) * 1.3  # Approximate
                 )
@@ -276,7 +325,7 @@ async def process_research_background(research_data: Dict[str, Any], research_ty
                     required_players=research_data.get('required_players', ''),
                     required_countries=research_data.get('required_countries', ''),
                     session_id=session_id,
-                    ai_model=config.GEMINI_MODEL,
+                    ai_model=config.HF_MODEL,
                     processing_time=120,
                     tokens_used=len(result["report"].split()) * 1.3
                 )
@@ -603,125 +652,69 @@ Mapping к нашим целям/метрикам: какие north-star/под�
 Ясные формулировки, избегай жаргона.
 """
 
-    # Отправляем запрос к Gemini API
-    async with httpx.AsyncClient(timeout=600.0) as client:  # 10 minutes for HTTP requests
-        # Retry logic for 503 errors (model overloaded)
-        max_retries = 5
-        attempt = 0
-        
-        while attempt < max_retries:
-            try:
-                response = await client.post(
-                    config.GEMINI_API_URL,
-                    headers={
-                        "Content-Type": "application/json"
-                    },
-                    params={
-                        "key": config.GEMINI_API_KEY
-                    },
-                    json={
-                        "contents": [
-                            {
-                                "parts": [
-                                    {
-                                        "text": prompt
-                                    }
-                                ]
-                            }
-                        ],
-                        "generationConfig": {
-                            "temperature": 0.7,
-                            "topP": 0.8,
-                            "topK": 40
-                        }
-                    }
-                )
-                
-                # Check for 503 error (model overloaded)
-                if response.status_code == 503:
-                    error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                    error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                    
-                    print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                    await asyncio.sleep(5)  # Wait 5 seconds before retry
-                    # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                    continue
-                
-                # If not 503, break out of retry loop
-                break
-                
-            except Exception as e:
-                attempt += 1
-                print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                if attempt < max_retries:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                else:
-                    raise e
-        
-        if response.status_code == 200:
-            result = response.json()
-            report_content = result["candidates"][0]["content"]["parts"][0]["text"]
-            
-            # Сохраняем отчет в базу данных
-            report_service = ReportService(db)
-            session_manager = SessionManager(db)
-            
-            # Получаем или создаем сессию
-            session_id = request.cookies.get("session_id")
-            if not session_id:
-                session_id = session_manager.create_session(
-                    ip_address=request.client.host,
-                    user_agent=request.headers.get("user-agent")
-                )
-            
-            # Создаем отчет
-            if research_type == "feature":
-                title = f"Исследование: {research_element}"
-                report = report_service.create_report(
-                    title=title,
-                    content=report_content,
-                    research_type="feature",
-                    product_description=product_description,
-                    segment=segment,
-                    research_element=research_element,
-                    benchmarks=benchmarks,
-                    required_players=required_players,
-                    required_countries=required_countries,
-                    session_id=session_id,
-                    ai_model=config.GEMINI_MODEL,
-                    processing_time=30,  # Примерное время
-                    tokens_used=len(report_content.split())  # Примерное количество токенов
-                )
-            else:  # research_type == "product"
-                title = f"Исследование продукта: {product_characteristics[:50]}..."
-                report = report_service.create_report(
-                    title=title,
-                    content=report_content,
-                    research_type="product",
-                    product_description=product_description,
-                    segment=segment,
-                    research_element=product_characteristics,  # Используем характеристики продукта
-                    benchmarks="",  # Не используется для product
-                    required_players=required_players,
-                    required_countries=required_countries,
-                    session_id=session_id,
-                    ai_model=config.GEMINI_MODEL,
-                    processing_time=30,  # Примерное время
-                    tokens_used=len(report_content.split())  # Примерное количество токенов
-                )
-            
-            return {
-                "success": True,
-                "report": report_content,
-                "report_id": report.id,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"API Error: {response.status_code}",
-                "message": "Ошибка при генерации отчета"
-            }
+    try:
+        report_content = await call_deepseek(prompt, temperature=0.7, max_new_tokens=4096)
+
+        # Сохраняем отчет в базу данных
+        report_service = ReportService(db)
+        session_manager = SessionManager(db)
+
+        # Получаем или создаем сессию
+        session_id = request.cookies.get("session_id")
+        if not session_id:
+            session_id = session_manager.create_session(
+                ip_address=request.client.host,
+                user_agent=request.headers.get("user-agent")
+            )
+
+        # Создаем отчет
+        if research_type == "feature":
+            title = f"Исследование: {research_element}"
+            report = report_service.create_report(
+                title=title,
+                content=report_content,
+                research_type="feature",
+                product_description=product_description,
+                segment=segment,
+                research_element=research_element,
+                benchmarks=benchmarks,
+                required_players=required_players,
+                required_countries=required_countries,
+                session_id=session_id,
+                ai_model=config.HF_MODEL,
+                processing_time=30,  # Примерное время
+                tokens_used=len(report_content.split())  # Примерное количество токенов
+            )
+        else:  # research_type == "product"
+            title = f"Исследование продукта: {product_characteristics[:50]}..."
+            report = report_service.create_report(
+                title=title,
+                content=report_content,
+                research_type="product",
+                product_description=product_description,
+                segment=segment,
+                research_element=product_characteristics,  # Используем характеристики продукта
+                benchmarks="",  # Не используется для product
+                required_players=required_players,
+                required_countries=required_countries,
+                session_id=session_id,
+                ai_model=config.HF_MODEL,
+                processing_time=30,  # Примерное время
+                tokens_used=len(report_content.split())  # Примерное количество токенов
+            )
+
+        return {
+            "success": True,
+            "report": report_content,
+            "report_id": report.id,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"API Error: {str(e)}",
+            "message": "Ошибка при генерации отчета"
+        }
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):

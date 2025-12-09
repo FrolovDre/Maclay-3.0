@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Исследование продукта - AI Research Assistant</title>
+    <title>Исследование фичи - AI Research Assistant</title>
     <link rel="icon" type="image/jpeg" href="./static/logo.jpg">
     <link rel="stylesheet" href="./static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -33,14 +33,14 @@
                             </div>
                         </div>
                         <h1 class="form-title">
-                            Исследование продукта
+                            Исследование фичи
                         </h1>
                         <p class="form-subtitle">
-                            Заполните форму для комплексного анализа продукта и его позиционирования
+                            Заполните форму для глубокого анализа функциональности
                         </p>
                     </div>
 
-                    <form action="/process-product" method="post" onsubmit="return validateAndSubmit()">
+                    <form action="/process-feature" method="post" onsubmit="return validateAndSubmit()">
                         <!-- 1. Описание продукта и бизнес-контекста -->
                         <div class="form-group">
                             <label class="form-label required" for="product_description">
@@ -90,25 +90,39 @@
                             </div>
                         </div>
 
-                        <!-- 3. Характеристики продукта -->
+                        <!-- 3. Что исследуем -->
                         <div class="form-group">
-                            <label class="form-label required" for="product_characteristics">
-                                3. Характеристики продукта, который требуется найти
+                            <label class="form-label required" for="research_element">
+                                3. Что исследуем (элемент продукта)
                                 <span class="required-star">*</span>
                             </label>
-                            <textarea 
-                                id="product_characteristics" 
-                                name="product_characteristics" 
-                                class="form-textarea" 
-                                placeholder="Опишите характеристики продукта, который вы ищете: функциональность, особенности, технологии..."
+                            <input 
+                                type="text" 
+                                id="research_element" 
+                                name="research_element" 
+                                class="form-input" 
+                                placeholder="Например: авторизация, платежи, уведомления, чат-бот..."
                                 required
+                            >
+                        </div>
+
+                        <!-- 4. Известные бенчмарки -->
+                        <div class="form-group">
+                            <label class="form-label" for="benchmarks">
+                                4. Известные бенчмарки
+                            </label>
+                            <textarea 
+                                id="benchmarks" 
+                                name="benchmarks" 
+                                class="form-textarea" 
+                                placeholder="Укажите известные вам компании или продукты, которые можно использовать как бенчмарки..."
                             ></textarea>
                         </div>
 
-                        <!-- 4. Обязательные игроки -->
+                        <!-- 5. Обязательные игроки -->
                         <div class="form-group">
                             <label class="form-label" for="required_players">
-                                4. Обязательные игроки к рассмотрению
+                                5. Обязательные игроки к рассмотрению
                             </label>
                             <textarea 
                                 id="required_players" 
@@ -118,10 +132,10 @@
                             ></textarea>
                         </div>
 
-                        <!-- 5. Обязательные страны -->
+                        <!-- 6. Обязательные страны -->
                         <div class="form-group">
                             <label class="form-label" for="required_countries">
-                                5. Обязательные страны к рассмотрению
+                                6. Обязательные страны к рассмотрению
                             </label>
                             <textarea 
                                 id="required_countries" 
@@ -162,7 +176,7 @@
                             <i class="fas fa-flag"></i>
                             <div class="help-content">
                                 <strong>Фокусируйтесь на цели</strong>
-                                <p>Укажите, что именно вы хотите исследовать</p>
+                                <p>Укажите, что именно вы хотите улучшить</p>
                             </div>
                         </div>
                         <div class="help-item">
@@ -241,7 +255,7 @@
             
             function updateCounter() {
                 const length = textarea.value.length;
-                counter.textContent = length + '/' + maxLength;
+                counter.textContent = `${length}/${maxLength}`;
                 if (length > maxLength * 0.9) {
                     counter.style.color = '#ff6b6b';
                 } else {

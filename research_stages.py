@@ -33,6 +33,54 @@ class ResearchProcessor:
         self.client_id = client_id
         self.stages = []
         self.current_stage = 0
+
+    async def _call_deepseek(self, prompt: str, temperature: float = 0.7, max_new_tokens: int = 4096) -> str:
+        """Call DeepSeek model via Hugging Face Inference API"""
+        api_url = f"{self.config.HF_API_URL}/models/{self.config.HF_MODEL}"
+        headers = {
+            "Authorization": f"Bearer {self.config.HF_API_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "temperature": temperature,
+                "max_new_tokens": max_new_tokens,
+                "return_full_text": False,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=270.0) as client:
+            max_retries = 5
+            attempt = 0
+            while attempt < max_retries:
+                try:
+                    response = await client.post(api_url, headers=headers, json=payload)
+
+                    if response.status_code == 503:
+                        await asyncio.sleep(5)
+                        continue
+
+                    response.raise_for_status()
+                    result = response.json()
+                    return self._extract_generated_text(result)
+                except Exception as e:
+                    attempt += 1
+                    if attempt >= max_retries:
+                        raise e
+                    await asyncio.sleep(2 ** attempt)
+
+    def _extract_generated_text(self, result: Any) -> str:
+        """Extract generated text from Hugging Face Inference response"""
+        if isinstance(result, list) and result:
+            item = result[0]
+            if isinstance(item, dict):
+                return item.get("generated_text") or item.get("text") or ""
+            if isinstance(item, str):
+                return item
+        if isinstance(result, dict):
+            return result.get("generated_text") or result.get("text") or ""
+        return ""
         
     async def send_update(self, stage_name: str, status: str, progress: int, message: str = ""):
         """Send update to client via WebSocket"""
@@ -210,73 +258,24 @@ class ResearchProcessor:
         
         await self.send_update("data_collection", "active", 30, "Отправляем запрос к ИИ...")
         
-        async with httpx.AsyncClient(timeout=270.0) as client:
+        try:
             await self.send_update("data_collection", "active", 40, "Выполняем HTTP запрос...")
-            api_url = f"{self.config.GEMINI_API_URL}/v1beta/models/{self.config.GEMINI_MODEL}:generateContent"
-            print(f"🌐 Отправляем запрос к {api_url}")
-            
-            # Retry logic for 503 errors (model overloaded)
-            max_retries = 5
-            attempt = 0
-            
-            while attempt < max_retries:
-                try:
-                    response = await client.post(
-                        api_url,
-                        headers={
-                            "Content-Type": "application/json",
-                            "x-goog-api-key": self.config.GEMINI_API_KEY
-                        },
-                        json={
-                            "contents": [{
-                                "parts": [{"text": prompt}]
-                            }],
-                            "generationConfig": {
-                                "temperature": 0.7
-                            }
-                        }
-                    )
-                    
-                    # Check for 503 error (model overloaded)
-                    if response.status_code == 503:
-                        error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                        error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                        
-                        print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                        await asyncio.sleep(5)  # Wait 5 seconds before retry
-                        # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                        continue
-                    
-                    # If not 503, break out of retry loop
-                    break
-                    
-                except Exception as e:
-                    attempt += 1
-                    print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                    if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        raise e
-            
-            print(f"📡 Получен ответ: {response.status_code}")
+            content = await self._call_deepseek(prompt, temperature=0.7, max_new_tokens=2048)
             await self.send_update("data_collection", "active", 70, "Обрабатываем ответ...")
-            
-            if response.status_code == 200:
-                result = response.json()
-                print(f"✅ Ответ успешно получен: {len(str(result))} символов")
-                await self.send_update("data_collection", "active", 90, "Структурируем данные...")
-                
-                # Parse the response to extract structured data
-                market_data = self.parse_market_data(result, research_type)
-                
-                await self.send_update("data_collection", "completed", 100, f"Найдено {len(market_data.get('companies', []))} компаний")
-                
-                return market_data
-            else:
-                error_msg = f"API Error: {response.status_code} - {response.text}"
-                print(f"❌ {error_msg}")
-                await self.send_update("data_collection", "error", 0, error_msg)
-                raise Exception(error_msg)
+
+            print(f"✅ Ответ успешно получен: {len(content)} символов")
+            await self.send_update("data_collection", "active", 90, "Структурируем данные...")
+
+            market_data = self.parse_market_data(content, research_type)
+
+            await self.send_update("data_collection", "completed", 100, f"Найдено {len(market_data.get('companies', []))} компаний")
+
+            return market_data
+        except Exception as e:
+            error_msg = f"API Error: {str(e)}"
+            print(f"❌ {error_msg}")
+            await self.send_update("data_collection", "error", 0, error_msg)
+            raise
 
     async def collect_local_documents_insights(self, research_data: Dict[str, Any], research_type: str) -> Dict[str, Any]:
         """Stage 1.5: Extract and summarize insights from local PDFs with retry"""
@@ -353,59 +352,13 @@ class ResearchProcessor:
         prompt = self.get_local_documents_prompt(files_payload, research_data, research_type)
         await self.send_update("local_documents", "active", 65, "Анализируем содержимое документов...")
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        try:
             await self.send_update("local_documents", "active", 70, "Отправляем запрос к ИИ...")
-            
-            # Retry logic for 503 errors (model overloaded)
-            max_retries = 5
-            attempt = 0
-            
-            while attempt < max_retries:
-                try:
-                    response = await client.post(
-                        f"{self.config.GEMINI_API_URL}/v1beta/models/{self.config.GEMINI_MODEL}:generateContent",
-                        headers={
-                            "Content-Type": "application/json",
-                            "x-goog-api-key": self.config.GEMINI_API_KEY
-                        },
-                        json={
-                            "contents": [{
-                                "parts": [{"text": prompt}]
-                            }],
-                            "generationConfig": {
-                                "temperature": 0.2
-                            }
-                        }
-                    )
-                    
-                    # Check for 503 error (model overloaded)
-                    if response.status_code == 503:
-                        error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                        error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                        
-                        print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                        await asyncio.sleep(5)  # Wait 5 seconds before retry
-                        # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                        continue
-                    
-                    # If not 503, break out of retry loop
-                    break
-                    
-                except Exception as e:
-                    attempt += 1
-                    print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                    if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        raise e
-
-        if response.status_code != 200:
-            await self.send_update("local_documents", "error", 0, f"API Error: {response.status_code}")
+            content = await self._call_deepseek(prompt, temperature=0.2, max_new_tokens=1024)
+            await self.send_update("local_documents", "active", 85, "Обрабатываем ответ ИИ...")
+        except Exception as e:
+            await self.send_update("local_documents", "error", 0, f"API Error: {e}")
             return {"insights": [], "files": [f["file"] for f in files_payload]}
-
-        await self.send_update("local_documents", "active", 85, "Обрабатываем ответ ИИ...")
-        result = response.json()
-        content = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
         
         await self.send_update("local_documents", "active", 90, "Извлекаем структурированные инсайты...")
         insights = self.parse_local_insights(content)
@@ -451,62 +404,18 @@ class ResearchProcessor:
         
         await self.send_update("case_analysis", "active", 30, "Отправляем запрос на анализ...")
         
-        async with httpx.AsyncClient(timeout=270.0) as client:
-            # Retry logic for 503 errors (model overloaded)
-            max_retries = 5
-            attempt = 0
-            
-            while attempt < max_retries:
-                try:
-                    response = await client.post(
-                        f"{self.config.GEMINI_API_URL}/v1beta/models/{self.config.GEMINI_MODEL}:generateContent",
-                        headers={
-                            "Content-Type": "application/json",
-                            "x-goog-api-key": self.config.GEMINI_API_KEY
-                        },
-                        json={
-                            "contents": [{
-                                "parts": [{"text": prompt}]
-                            }],
-                            "generationConfig": {
-                                "temperature": 0.5
-                            }
-                        }
-                    )
-                    
-                    # Check for 503 error (model overloaded)
-                    if response.status_code == 503:
-                        error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                        error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                        
-                        print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                        await asyncio.sleep(5)  # Wait 5 seconds before retry
-                        # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                        continue
-                    
-                    # If not 503, break out of retry loop
-                    break
-                    
-                except Exception as e:
-                    attempt += 1
-                    print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                    if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        raise e
-            
+        try:
+            content = await self._call_deepseek(prompt, temperature=0.5, max_new_tokens=2048)
             await self.send_update("case_analysis", "active", 70, "Обрабатываем результаты анализа...")
-            
-            if response.status_code == 200:
-                result = response.json()
-                await self.send_update("case_analysis", "active", 90, "Структурируем кейсы...")
-                
-                cases = self.parse_cases(result)
-                await self.send_update("case_analysis", "completed", 100, f"Проанализировано {len(cases)} кейсов")
-                
-                return cases
-            else:
-                raise Exception(f"API Error: {response.status_code}")
+
+            await self.send_update("case_analysis", "active", 90, "Структурируем кейсы...")
+
+            cases = self.parse_cases(content)
+            await self.send_update("case_analysis", "completed", 100, f"Проанализировано {len(cases)} кейсов")
+
+            return cases
+        except Exception as e:
+            raise Exception(f"API Error: {e}")
     
     
     
@@ -530,76 +439,32 @@ class ResearchProcessor:
         
         await self.send_update("report_generation", "active", 30, "Отправляем запрос на генерацию отчета...")
         
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            # Retry logic for 503 errors (model overloaded)
-            max_retries = 5
-            attempt = 0
-            
-            while attempt < max_retries:
-                try:
-                    response = await client.post(
-                        f"{self.config.GEMINI_API_URL}/v1beta/models/{self.config.GEMINI_MODEL}:generateContent",
-                        headers={
-                            "Content-Type": "application/json",
-                            "x-goog-api-key": self.config.GEMINI_API_KEY
-                        },
-                        json={
-                            "contents": [{
-                                "parts": [{"text": prompt}]
-                            }],
-                            "generationConfig": {
-                                "temperature": 0.3
-                            }
-                        }
-                    )
-                    
-                    # Check for 503 error (model overloaded)
-                    if response.status_code == 503:
-                        error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                        error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                        
-                        print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                        await asyncio.sleep(5)  # Wait 5 seconds before retry
-                        # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                        continue
-                    
-                    # If not 503, break out of retry loop
-                    break
-                    
-                except Exception as e:
-                    attempt += 1
-                    print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                    if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        raise e
-            
+        try:
+            response_text = await self._call_deepseek(prompt, temperature=0.3, max_new_tokens=4096)
+
             await self.send_update("report_generation", "active", 70, "Обрабатываем ответ...")
-            
-            if response.status_code == 200:
-                result = response.json()
-                await self.send_update("report_generation", "active", 90, "Форматируем отчет...")
-                
-                report_content = self.extract_report_content(result)
-                
-                # Enhance report with additional links
-                await self.send_update("report_generation", "active", 95, "Добавляем дополнительные ссылки...")
-                enhanced_report = await self.enhance_report_with_links(report_content, cases, research_data, research_type)
-                
-                # Clean the report content before final processing
-                final_report = self.clean_report_content(enhanced_report)
-                
-                # Final report length check
-                print(f"📊 ФИНАЛЬНЫЙ ОТЧЕТ:")
-                print(f"   Длина отчета: {len(final_report)} символов")
-                print(f"   Количество абзацев: {final_report.count(chr(10)) + 1}")
-                print(f"   Количество ссылок: {final_report.count('[')}")
-                
-                await self.send_update("report_generation", "completed", 100, f"Отчет готов! ({len(final_report)} символов)")
-                
-                return final_report
-            else:
-                raise Exception(f"API Error: {response.status_code}")
+            await self.send_update("report_generation", "active", 90, "Форматируем отчет...")
+
+            report_content = self.extract_report_content(response_text)
+
+            # Enhance report with additional links
+            await self.send_update("report_generation", "active", 95, "Добавляем дополнительные ссылки...")
+            enhanced_report = await self.enhance_report_with_links(report_content, cases, research_data, research_type)
+
+            # Clean the report content before final processing
+            final_report = self.clean_report_content(enhanced_report)
+
+            # Final report length check
+            print(f"📊 ФИНАЛЬНЫЙ ОТЧЕТ:")
+            print(f"   Длина отчета: {len(final_report)} символов")
+            print(f"   Количество абзацев: {final_report.count(chr(10)) + 1}")
+            print(f"   Количество ссылок: {final_report.count('[')}")
+
+            await self.send_update("report_generation", "completed", 100, f"Отчет готов! ({len(final_report)} символов)")
+
+            return final_report
+        except Exception as e:
+            raise Exception(f"API Error: {e}")
     
     def get_data_collection_prompt(self, research_data: Dict[str, Any], research_type: str) -> str:
         """Get prompt for data collection stage"""
@@ -1093,30 +958,18 @@ class ResearchProcessor:
             })
         return insights
     
-    def parse_market_data(self, api_response: Dict[str, Any], research_type: str) -> Dict[str, Any]:
-        """Parse market data from API response"""
+    def parse_market_data(self, content: str, research_type: str) -> Dict[str, Any]:
+        """Parse market data from generated text"""
         try:
-            if "candidates" in api_response and len(api_response["candidates"]) > 0:
-                content = api_response["candidates"][0]["content"]["parts"][0]["text"]
-                
-                # Parse the content to extract structured data
-                companies = self.extract_companies_from_text(content)
-                
-                return {
-                    "raw_content": content,
-                    "companies": companies,
-                    "research_type": research_type,
-                    "timestamp": datetime.now().isoformat(),
-                    "total_found": len(companies)
-                }
-            else:
-                return {
-                    "raw_content": "No data found",
-                    "companies": [],
-                    "research_type": research_type,
-                    "timestamp": datetime.now().isoformat(),
-                    "total_found": 0
-                }
+            companies = self.extract_companies_from_text(content)
+
+            return {
+                "raw_content": content,
+                "companies": companies,
+                "research_type": research_type,
+                "timestamp": datetime.now().isoformat(),
+                "total_found": len(companies)
+            }
         except Exception as e:
             return {
                 "raw_content": f"Error parsing data: {str(e)}",
@@ -1165,19 +1018,11 @@ class ResearchProcessor:
             
         return companies
     
-    def parse_cases(self, api_response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Parse cases from API response"""
+    def parse_cases(self, content: str) -> List[Dict[str, Any]]:
+        """Parse cases from generated text"""
         try:
-            if "candidates" in api_response and len(api_response["candidates"]) > 0:
-                content = api_response["candidates"][0]["content"]["parts"][0]["text"]
-                
-                # Parse the content to extract case information
-                cases = self.extract_cases_from_text(content)
-                
-                return cases
-            else:
-                return []
-        except Exception as e:
+            return self.extract_cases_from_text(content)
+        except Exception:
             return []
     
     def extract_cases_from_text(self, text: str) -> List[Dict[str, Any]]:
@@ -1262,16 +1107,9 @@ class ResearchProcessor:
         
         return report_content + verification_summary
     
-    def extract_report_content(self, api_response: Dict[str, Any]) -> str:
-        """Extract report content from API response"""
-        try:
-            if "candidates" in api_response and len(api_response["candidates"]) > 0:
-                content = api_response["candidates"][0]["content"]["parts"][0]["text"]
-                return content
-            else:
-                return "Ошибка при генерации отчета"
-        except Exception as e:
-            return f"Ошибка при обработке ответа: {str(e)}"
+    def extract_report_content(self, response_text: str) -> str:
+        """Extract report content from generated text"""
+        return response_text or "Ошибка при генерации отчета"
     
     async def enhance_report_with_links(self, report_content: str, cases: List[Dict[str, Any]], research_data: Dict[str, Any], research_type: str) -> str:
         """Enhance report with additional links from verified sources"""
@@ -1319,66 +1157,21 @@ class ResearchProcessor:
 ВЕРНИ ПОЛНЫЙ УЛУЧШЕННЫЙ ОТЧЕТ С ДОБАВЛЕННЫМИ ССЫЛКАМИ.
 """
             
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # Retry logic for 503 errors (model overloaded)
-                max_retries = 5
-                attempt = 0
-                
-                while attempt < max_retries:
-                    try:
-                        response = await client.post(
-                            f"{self.config.GEMINI_API_URL}/v1beta/models/{self.config.GEMINI_MODEL}:generateContent",
-                            headers={
-                                "Content-Type": "application/json",
-                                "x-goog-api-key": self.config.GEMINI_API_KEY
-                            },
-                            json={
-                                "contents": [{
-                                    "parts": [{"text": prompt}]
-                                }],
-                                "generationConfig": {
-                                    "temperature": 0.3
-                                }
-                            }
-                        )
-                        
-                        # Check for 503 error (model overloaded)
-                        if response.status_code == 503:
-                            error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                            error_message = error_data.get('error', {}).get('message', 'Model overloaded')
-                            
-                            print(f"⚠️ Модель перегружена (503), повторяем через 5 секунд... (попытка не засчитывается)")
-                            await asyncio.sleep(5)  # Wait 5 seconds before retry
-                            # НЕ увеличиваем attempt для 503 ошибки - не тратим попытки
-                            continue
-                        
-                        # If not 503, break out of retry loop
-                        break
-                        
-                    except Exception as e:
-                        attempt += 1
-                        print(f"❌ Ошибка на попытке {attempt}: {str(e)}")
-                        if attempt < max_retries:
-                            await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                        else:
-                            raise e
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    enhanced_content = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    
-                    if enhanced_content:
-                        print(f"📊 УЛУЧШЕНИЕ ОТЧЕТА:")
-                        print(f"   Исходная длина: {len(report_content)} символов")
-                        print(f"   Улучшенная длина: {len(enhanced_content)} символов")
-                        return enhanced_content
-                    else:
-                        print(f"⚠️ ИИ не вернул улучшенный отчет, используем исходный")
-                        return report_content
+            try:
+                enhanced_content = await self._call_deepseek(prompt, temperature=0.3, max_new_tokens=4096)
+
+                if enhanced_content:
+                    print(f"📊 УЛУЧШЕНИЕ ОТЧЕТА:")
+                    print(f"   Исходная длина: {len(report_content)} символов")
+                    print(f"   Улучшенная длина: {len(enhanced_content)} символов")
+                    return enhanced_content
                 else:
-                    print(f"⚠️ Ошибка улучшения отчета: {response.status_code}")
+                    print(f"⚠️ ИИ не вернул улучшенный отчет, используем исходный")
                     return report_content
-                    
+            except Exception as e:
+                print(f"⚠️ Ошибка улучшения отчета: {e}")
+                return report_content
+
         except Exception as e:
             print(f"⚠️ Ошибка при улучшении отчета: {str(e)}")
             return report_content

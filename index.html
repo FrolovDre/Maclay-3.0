@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Research Assistant</title>
+    <link rel="icon" type="image/jpeg" href="./static/logo.jpg">
+    <link rel="stylesheet" href="./static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Animated Background -->
+        <div class="background-animation">
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+            <div class="gradient-orb orb-3"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="hero-section">
+                <div class="logo">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h1 class="hero-title">
+                    Привет! Я ИИ-ассистент для
+                    <span class="gradient-text">продуктового ресёрча</span>!
+                </h1>
+                <p class="hero-subtitle">
+                    Выберите тип исследования для глубокого анализа рынка
+                </p>
+            </div>
+
+            <div class="research-options">
+                <div class="option-card" onclick="selectOption(event, 'feature')">
+                    <div class="card-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <h3>Фича</h3>
+                    <p>Исследование конкретной функциональности продукта</p>
+                    <div class="card-arrow">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                </div>
+
+                <div class="option-card" onclick="selectOption(event, 'product')">
+                    <div class="card-icon">
+                        <i class="fas fa-cube"></i>
+                    </div>
+                    <h3>Продукт</h3>
+                    <p>Комплексный анализ продукта и его позиционирования</p>
+                    <div class="card-arrow">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="features-preview">
+                <h3>Что вы получите:</h3>
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <i class="fas fa-search"></i>
+                        <span>Глубокий анализ рынка</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>10+ подтвержденных кейсов</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-link"></i>
+                        <span>Проверенные источники</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-download"></i>
+                        <span>Экспорт в PDF</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./static/js/main.js"></script>
+</body>
+</html>

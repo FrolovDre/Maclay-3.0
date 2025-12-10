@@ -169,128 +169,87 @@ async def loading_page(request: Request):
         "required_players": "",
         "required_countries": ""
     }
-
+    
     return templates.TemplateResponse("loading.html", {
         "request": request,
-        "research_data": research_data,
-        "client_id": None,
-        "research_started": False
+        "research_data": research_data
     })
 
-@app.get("/process-feature", response_class=HTMLResponse)
-@app.get("/process-feature/", response_class=HTMLResponse)
-async def process_feature_get(request: Request):
-    """Render loading screen for feature research via GET (static fallback)."""
-    params = request.query_params
-    research_data = {
-        "product_description": params.get("product_description", ""),
-        "segment": params.get("segment", ""),
-        "research_element": params.get("research_element", ""),
-        "benchmarks": params.get("benchmarks", ""),
-        "required_players": params.get("required_players", ""),
-        "required_countries": params.get("required_countries", ""),
-        "product_characteristics": ""
-    }
-
-    return templates.TemplateResponse("loading.html", {
-        "request": request,
-        "research_data": research_data,
-        "client_id": None,
-        "research_started": False
-    })
-
-
-@app.post("/process-feature", response_class=HTMLResponse)
-@app.post("/process-feature/", response_class=HTMLResponse)
+@app.api_route("/process-feature", methods=["GET", "POST"])
 async def process_feature(
     request: Request,
-    product_description: str = Form(...),
-    segment: str = Form(...),
-    research_element: str = Form(...),
-    benchmarks: str = Form(""),
-    required_players: str = Form(""),
-    required_countries: str = Form(""),
+    product_description: str | None = Form(None),
+    segment: str | None = Form(None),
+    research_element: str | None = Form(None),
+    benchmarks: str | None = Form(""),
+    required_players: str | None = Form(""),
+    required_countries: str | None = Form(""),
     db: Session = Depends(get_db)
 ):
-    """Handle feature form submission and start research in background."""
+    """Render loading screen for feature research.
+
+    Supports both POST (backend forms) and GET (static hosting) to avoid 405 errors
+    when the form is opened from a static site or bookmarked URL.
+    """
+    if request.method == "GET":
+        params = request.query_params
+        product_description = params.get("product_description", "")
+        segment = params.get("segment", "")
+        research_element = params.get("research_element", "")
+        benchmarks = params.get("benchmarks", "")
+        required_players = params.get("required_players", "")
+        required_countries = params.get("required_countries", "")
+
     research_data = {
-        "product_description": product_description,
-        "segment": segment,
-        "research_element": research_element,
-        "benchmarks": benchmarks,
-        "required_players": required_players,
-        "required_countries": required_countries,
-        "product_characteristics": ""
-    }
-
-    client_id = str(uuid.uuid4())
-    asyncio.create_task(process_research_background(research_data, "feature", client_id, db))
-
-    return templates.TemplateResponse("loading.html", {
-        "request": request,
-        "research_data": research_data,
-        "client_id": client_id,
-        "research_started": True
-    })
-
-
-@app.get("/process-product", response_class=HTMLResponse)
-@app.get("/process-product/", response_class=HTMLResponse)
-async def process_product_get(request: Request):
-    """Render loading screen for product research via GET (static fallback)."""
-    params = request.query_params
-    research_data = {
-        "product_description": params.get("product_description", ""),
-        "segment": params.get("segment", ""),
-        "product_characteristics": params.get("product_characteristics", ""),
-        "required_players": params.get("required_players", ""),
-        "required_countries": params.get("required_countries", ""),
-        "research_element": "",
-        "benchmarks": ""
+        "product_description": product_description or "",
+        "segment": segment or "",
+        "research_element": research_element or "",
+        "benchmarks": benchmarks or "",
+        "required_players": required_players or "",
+        "required_countries": required_countries or ""
     }
 
     return templates.TemplateResponse("loading.html", {
         "request": request,
-        "research_data": research_data,
-        "client_id": None,
-        "research_started": False
+        "research_data": research_data
     })
 
-
-@app.post("/process-product", response_class=HTMLResponse)
-@app.post("/process-product/", response_class=HTMLResponse)
+@app.api_route("/process-product", methods=["GET", "POST"])
 async def process_product(
     request: Request,
-    product_description: str = Form(...),
-    segment: str = Form(...),
-    product_characteristics: str = Form(...),
-    required_players: str = Form(""),
-    required_countries: str = Form(""),
+    product_description: str | None = Form(None),
+    segment: str | None = Form(None),
+    product_characteristics: str | None = Form(None),
+    required_players: str | None = Form(""),
+    required_countries: str | None = Form(""),
     db: Session = Depends(get_db)
 ):
-    """Handle product form submission and start research in background."""
-    research_data = {
-        "product_description": product_description,
-        "segment": segment,
-        "product_characteristics": product_characteristics,
-        "required_players": required_players,
-        "required_countries": required_countries,
-        "research_element": "",
-        "benchmarks": ""
-    }
+    """Render loading screen for product research.
 
-    client_id = str(uuid.uuid4())
-    asyncio.create_task(process_research_background(research_data, "product", client_id, db))
+    Accepts GET and POST so static form submissions do not trigger 405 errors.
+    """
+    if request.method == "GET":
+        params = request.query_params
+        product_description = params.get("product_description", "")
+        segment = params.get("segment", "")
+        product_characteristics = params.get("product_characteristics", "")
+        required_players = params.get("required_players", "")
+        required_countries = params.get("required_countries", "")
+
+    research_data = {
+        "product_description": product_description or "",
+        "segment": segment or "",
+        "product_characteristics": product_characteristics or "",
+        "required_players": required_players or "",
+        "required_countries": required_countries or ""
+    }
 
     return templates.TemplateResponse("loading.html", {
         "request": request,
-        "research_data": research_data,
-        "client_id": client_id,
-        "research_started": True
+        "research_data": research_data
     })
 
 @app.post("/generate-report")
-@app.post("/generate-report/")
 async def generate_report(request: Request, db: Session = Depends(get_db)):
     """Generate report using improved multi-stage process"""
     try:

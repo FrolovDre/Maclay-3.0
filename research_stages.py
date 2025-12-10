@@ -34,9 +34,18 @@ class ResearchProcessor:
         self.stages = []
         self.current_stage = 0
 
+        # Use Hugging Face configuration everywhere (fallbacks keep legacy Gemini
+        # settings from breaking the pipeline if they still exist on the config).
+        self.api_base_url = getattr(self.config, "HF_API_URL", "") or getattr(
+            self.config, "GEMINI_API_URL", ""
+        )
+        self.model_name = getattr(self.config, "HF_MODEL", "") or getattr(
+            self.config, "GEMINI_MODEL", ""
+        )
+
     async def _call_deepseek(self, prompt: str, temperature: float = 0.7, max_new_tokens: int = 4096) -> str:
         """Call DeepSeek model via Hugging Face Inference API"""
-        api_url = f"{self.config.HF_API_URL}/models/{self.config.HF_MODEL}"
+        api_url = f"{self.api_base_url}/models/{self.model_name}"
         headers = {
             "Authorization": f"Bearer {self.config.HF_API_TOKEN}",
             "Content-Type": "application/json",

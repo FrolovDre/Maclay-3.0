@@ -201,6 +201,10 @@
             required_countries: "{{ research_data.required_countries }}"
         };
 
+        // Server-provided identifiers and flags
+        window.initialClientId = "{{ client_id or '' }}";
+        window.researchAlreadyStarted = {{ 'true' if research_started else 'false' }};
+
         // Determine research type and update UI accordingly
         function updateResearchType() {
             const hasProductCharacteristics = window.researchData.product_characteristics && window.researchData.product_characteristics.trim() !== '';
@@ -529,8 +533,10 @@
         }
 
         function connectWebSocket() {
-            // Generate client ID
-            clientId = 'client_' + Math.random().toString(36).substr(2, 9);
+            // Use server-provided client_id when available to sync with background task
+            if (!clientId) {
+                clientId = window.initialClientId || ('client_' + Math.random().toString(36).substr(2, 9));
+            }
             
             // Connect to WebSocket with automatic protocol selection
             const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -674,6 +680,12 @@
         }
 
         function startReportGeneration() {
+            // Skip duplicate launch when research already started server-side
+            if (window.researchAlreadyStarted) {
+                startStatusCheck();
+                return;
+            }
+
             // Add client_id to research data
             const requestData = {
                 ...window.researchData,
